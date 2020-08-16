@@ -1,18 +1,23 @@
 PROJ = TMEA
-CC = gcc
-OBJS = lib/aes.o lib/gcm.o lib/utils.o lib/aes-intrinsics.o lib/gcm-intrinsics.o lib/utils-intrinsics.o lib/tmea_tree.o
-DEPS = include/aes.h include/gcm.h include/utils.h include/aes-intrinsics.h include/gcm-intrinsics.h include/utils-intrinsics.h include/tmea_tree.h
-CFLAGS = -c -Iinclude -O3
+CC = g++
+OBJS = lib/aes.o lib/gcm.o lib/utils.o lib/aes-intrinsics.o lib/gcm-intrinsics.o lib/utils-intrinsics.o
+OBJS_CC = lib/tmea_tree.o
+DEPS = include/aes.h include/gcm.h include/utils.h include/aes-intrinsics.h include/gcm-intrinsics.h include/utils-intrinsics.h
+DEPS_CC = include/tmea_tree.hpp
+CFLAGS = -c -Iinclude -O3 -w
 LFLAGS = -Iinclude -O3
 LIBS = -maes -mavx -mpclmul -msha
 
 all: $(PROJ)
 
-$(PROJ): main.c $(OBJS)
+$(PROJ): main.cpp $(OBJS) $(OBJS_CC)
 	$(CC) -o $@ $^ $(LFLAGS) $(LIBS)
 	@echo "Compilado correctamente."
 
 $(OBJS): %.o: %.c $(DEPS)
+	$(CC) -o $@ $< $(CFLAGS) $(LIBS)
+
+$(OBJS_CC): %.o: %.cpp $(DEPS_CC)
 	$(CC) -o $@ $< $(CFLAGS) $(LIBS)
 
 run: $(PROJ)

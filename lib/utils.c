@@ -86,7 +86,7 @@ unsigned char* without_cms_padding(unsigned char* in, int len) {
 /**
  * @param Blen Bits to opply xor binary operation.
  */
-void xor
+void _xor
     (unsigned char* a, unsigned char* b, size_t Blen, unsigned char* out) {
       __uint8_t residue = Blen % 8;
       size_t len = residue == 0 ? Blen / 8 : (Blen / 8) + 1;

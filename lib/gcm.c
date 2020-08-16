@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "aes.h"
+#include "aes-intrinsics.h"
 #include "gcm-intrinsics.h"
 #include "utils.h"
 
@@ -40,7 +41,7 @@ void GHASH(unsigned char* X, size_t x, unsigned char* H, size_t h,
 
   // 3.
   for (size_t i = 1; i <= m; i++) {
-    xor(&Y[16 * (i - 1)], &X[16 * (i - 1)], 16 * 8, &Y[16 * i]);
+    _xor(&Y[16 * (i - 1)], &X[16 * (i - 1)], 16 * 8, &Y[16 * i]);
     // Y[16 * i] = Y[16 * i]
   }
   // Ym[0] =
