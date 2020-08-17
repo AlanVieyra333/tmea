@@ -12,14 +12,13 @@ void test_gcm() {
   unsigned char K[] = {0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
                        0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f};
   // Additional authenticated data.
-  unsigned char A[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                       0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10};
+  unsigned char A[] = {0xf5, 0x37};
   // Plain text.
-  unsigned char P[] = {0x20, 0x21, 0x22, 0x23};
+  unsigned char P[] = {0x00, 0x00, 0x00, 0x00};
   // Initialization vector.
   unsigned char IV[] = {34, 15,  20, 79,  33,  7, 1,  99,
                         58, 109, 12, 218, 172, 4, 86, 42};
-  size_t a = 17, p = 4, iv = 16;
+  size_t a = 2, p = 4, iv = 16;
   size_t c = p;
   uint8_t C[c], P_decrypt[p];
   uint8_t T[16];
@@ -51,7 +50,11 @@ void test_gcm() {
 }
 
 void test_tmea() {
-  TMEA_Tree tree;
+  uint8_t nonce[2];
+  TMEA_Tree tree(nonce);
+
+  uint8_t data[4] = {0x01, 0x02, 0x03, 0x04};
+  // tree.modify_node(data, 1);
 
   tree.print();
 }
@@ -59,8 +62,8 @@ void test_tmea() {
 int main() {
   srand(time(0));
 
-  printf(">>>>> GCM\n");
-  test_gcm();
+  // printf(">>>>> GCM\n");
+  // test_gcm();
 
   test_tmea();
 

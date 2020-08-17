@@ -4,8 +4,8 @@
 #define LEVELS 3
 
 typedef struct _Nonce {
-  uint16_t left;
-  uint16_t right;
+  uint8_t left[2];
+  uint8_t right[2];
 } Nonce;
 
 union Data {
@@ -27,12 +27,13 @@ class TMEA_Tree {
  private:
   Node *tree;
   Node *create_node();
-  Node *create_tree(int levels);
-  void encrypt_node(Node &node, uint8_t A[2]);
+  Node *create_tree(int levels, uint8_t nonce[2]);
+  void encrypt_node(Node *node, uint8_t A[2]);
   void print(Node *node, int spaces);
 
  public:
-  TMEA_Tree();
+  TMEA_Tree(uint8_t nonce[2]);
   ~TMEA_Tree();
+  void modify_node(uint8_t data[4], int pos_leaf);
   void print();
 };
