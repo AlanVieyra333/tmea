@@ -25,17 +25,26 @@ TMEA_Tree::TMEA_Tree(uint8_t nonce[2]) {
   this->tree = create_tree(LEVELS, nonce);
 }
 
+/**
+ * Crea un arbol binario cifrado con los datos recibidos.
+ */
+TMEA_Tree::TMEA_Tree(uint8_t data[16], uint8_t nonce[2]) {
+  this->tree = create_tree(LEVELS, nonce);
+
+  update_leaf(1, data, nonce);
+  update_leaf(2, &data[4], nonce);
+  update_leaf(3, &data[8], nonce);
+  update_leaf(4, &data[12], nonce);
+}
+
 TMEA_Tree::~TMEA_Tree() {}
 
 /**
  * Crea un nodo con sus valores vacios.
  */
 Node* TMEA_Tree::create_node() {
-  TMEA_Element* element = new TMEA_Element();
-  memset(element, 0, sizeof(TMEA_Element));
-
   Node* node = new Node;
-  node->element = (void*)element;
+  node->element = new TMEA_Element();
   node->left = NULL;
   node->right = NULL;
 
@@ -49,8 +58,8 @@ Node* TMEA_Tree::create_node() {
  */
 Node* TMEA_Tree::create_tree(int levels, uint8_t nonce[2]) {
   Node* node = create_node();
-  uint8_t* nonce_left = ((TMEA_Element*)node->element)->data.nonce.left;
-  uint8_t* nonce_right = ((TMEA_Element*)node->element)->data.nonce.right;
+  uint8_t* nonce_left = (node->element)->data.nonce.left;
+  uint8_t* nonce_right = (node->element)->data.nonce.right;
 
   if (levels > 1) {
     node->left = create_tree(levels - 1, nonce_left);
@@ -62,11 +71,48 @@ Node* TMEA_Tree::create_tree(int levels, uint8_t nonce[2]) {
   return node;
 }
 
+void TMEA_Tree::update_leaf(int pos_leaf, uint8_t data[4], uint8_t nonce[2]) {
+  update_node(this->tree, data, nonce, pos_leaf, 1, (int)pow(2.0, LEVELS - 1));
+}
+
+int TMEA_Tree::decrypt_tree(Node* node, uint8_t nonce[2]) {
+  uint8_t nonce_left[2], nonce_right[2];
+  int dec_status;
+
+  if (node == NULL) {
+    return 1;
+  }
+
+  if (!decrypt_node(node, nonce)) return 0;
+
+  memcpy(nonce_left, node->element->data.nonce.left, 2);
+  memcpy(nonce_right, node->element->data.nonce.right, 2);
+
+  if (!decrypt_tree(node->left, nonce_left)) return 0;
+  if (!decrypt_tree(node->right, nonce_right)) return 0;
+
+  return 1;
+}
+
+int TMEA_Tree::decrypt(uint8_t nonce[2]) {
+  return decrypt_tree(this->tree, nonce);
+}
+
+/**
+ * Imprime el arbol.
+ */
+void TMEA_Tree::print() {
+  printf("Tree:\n");
+  print_node(this->tree, 0);
+}
+
+bool is_leaf(Node* node) { return node->left == NULL && node->right == NULL; }
+
 /**
  * Cifra los datos (4 bytes) de un nodo y genera un nonce de 2 bytes en A.
  */
-void TMEA_Tree::encrypt_node(Node* node, uint8_t A[2]) {
-  TMEA_Element* element = (TMEA_Element*)node->element;
+void encrypt_node(Node* node, uint8_t A[2]) {
+  TMEA_Element* element = node->element;
   uint8_t* T = element->tag;
   uint8_t* C = element->data.data;
 
@@ -82,45 +128,59 @@ void TMEA_Tree::encrypt_node(Node* node, uint8_t A[2]) {
 }
 
 /**
+ * Descifra los datos (4 bytes) de un nodo con su nonce asociado.
+ */
+int decrypt_node(Node* node, uint8_t A[2]) {
+  TMEA_Element* element = node->element;
+  uint8_t* T = element->tag;
+  uint8_t* P = element->data.data;
+
+  // Encrypt text.
+  uint8_t C[c];
+  memcpy(C, &element->data.data, c);
+
+  return gcm_decrypt(C, c, A, a, IV, iv, K, T, P);
+}
+
+/**
  * Modifica los datos de un nodo y vuelve a cifrar recursivamente hacia
  * el nodo raiz.
  */
-void TMEA_Tree::modify_node(uint8_t data[4], int pos_leaf) {
-  Node* node = this->tree;
-  int leaves = pow(2.0, LEVELS - 1);
-  int l = 1, r = leaves, mid;
+void update_node(Node* node, uint8_t data[4], uint8_t nonce[2], int position,
+                 int l, int r) {
+  int mid;
+  uint8_t *nonce_left, *nonce_right;
 
-  // Get node in position 'pos_leaf'.
-  for (size_t i = 1; i < LEVELS; i++) {
-    mid = l + (r - l) / 2;
-    if (pos_leaf <= mid) {
-      node = node->left;
+  // Base case.
+  if (node == NULL) return;
 
-      r = mid - 1;
-    } else {
-      node = node->right;
-
-      l = mid + 1;
-    }
+  if (decrypt_node(node, nonce) != 1) {
+    printf("INVALID nonce\n");
+    return;
   }
 
-  // Copy data to node.
-  TMEA_Element* element = (TMEA_Element*)node->element;
-  memcpy(element->data.data, data, 4);
+  nonce_left = (node->element)->data.nonce.left;
+  nonce_right = (node->element)->data.nonce.right;
 
-  uint8_t nonce[2];
+  mid = l + (r - l) / 2;
+  if (position <= mid) {
+    update_node(node->left, data, nonce_left, position, l, mid - 1);
+  } else {
+    update_node(node->right, data, nonce_right, position, mid + 1, r);
+  }
+
+  // Copy data to node and encript.
+  if (is_leaf(node)) {
+    memcpy(node->element->data.data, data, 4);
+  }
+
   encrypt_node(node, nonce);
 }
 
 /**
- * Imprime el arbol.
- */
-void TMEA_Tree::print() { print(this->tree, 0); }
-
-/**
  * Imprime los nodos recursivamente.
  */
-void TMEA_Tree::print(Node* node, int spaces) {
+void print_node(Node* node, int spaces) {
   // Base case
   if (node == NULL) return;
 
@@ -128,17 +188,16 @@ void TMEA_Tree::print(Node* node, int spaces) {
   spaces++;
 
   // Process right child first
-  print(node->right, spaces);
+  print_node(node->right, spaces);
 
   // Print current node after space count
   printf("\n");
   for (int i = 1; i < spaces; i++) printf("\t\t");
-  TMEA_Element element = *((TMEA_Element*)node->element);
-  printf("(%s | %s)\n", bytes_to_hex(element.data.data, 4),
-         bytes_to_hex(element.tag, 16));
-  // printf("([%llu, %llu][%s])\n", element.data.nonce.left,
-  //        element.data.nonce.right, element.tag);
+  printf("(%s | %s)\n", bytes_to_hex(node->element->data.data, 4),
+         bytes_to_hex(node->element->tag, 16));
+  // printf("([%llu, %llu][%s])\n", node->element->data.nonce.left,
+  //        node->element->data.nonce.right, node->element->tag);
 
   // Process left child
-  print(node->left, spaces);
+  print_node(node->left, spaces);
 }

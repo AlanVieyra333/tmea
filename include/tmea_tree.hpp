@@ -20,7 +20,7 @@ typedef struct _TMEA_Element {
 
 typedef struct _Node {
   struct _Node *left, *right;
-  void *element;
+  TMEA_Element *element;
 } Node;
 
 class TMEA_Tree {
@@ -28,12 +28,21 @@ class TMEA_Tree {
   Node *tree;
   Node *create_node();
   Node *create_tree(int levels, uint8_t nonce[2]);
-  void encrypt_node(Node *node, uint8_t A[2]);
+  int decrypt_tree(Node* node, uint8_t nonce[2]);
   void print(Node *node, int spaces);
 
  public:
   TMEA_Tree(uint8_t nonce[2]);
+  TMEA_Tree(uint8_t data[16], uint8_t nonce[2]);
   ~TMEA_Tree();
-  void modify_node(uint8_t data[4], int pos_leaf);
+  void update_leaf(int pos_leaf, uint8_t data[4], uint8_t nonce[2]);
+  int decrypt(uint8_t nonce[2]);
   void print();
 };
+
+bool is_leaf(Node *node);
+void encrypt_node(Node *node, uint8_t A[2]);
+int decrypt_node(Node *node, uint8_t A[2]);
+void update_node(Node *node, uint8_t data[4], uint8_t nonce[2], int position,
+                 int l, int r);
+void print_node(Node *node, int spaces);
