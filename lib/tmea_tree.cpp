@@ -21,20 +21,20 @@ size_t iv = 16, p = 4, a = 2, c = p;
  */
 uint16_t gen_nonce() { return (rand() % (65535 + 1)); }
 
-TMEA_Tree::TMEA_Tree(uint8_t nonce[2]) {
+TMEA_Tree::TMEA_Tree(uint8_t nonce[NONCE_SIZE]) {
   this->tree = create_tree(LEVELS, nonce);
 }
 
 /**
  * Crea un arbol binario cifrado con los datos recibidos.
  */
-TMEA_Tree::TMEA_Tree(uint8_t data[16], uint8_t nonce[2]) {
+TMEA_Tree::TMEA_Tree(uint8_t data[TREE_SIZE], uint8_t nonce[NONCE_SIZE]) {
   this->tree = create_tree(LEVELS, nonce);
 
   update_leaf(1, data, nonce);
-  update_leaf(2, &data[4], nonce);
-  update_leaf(3, &data[8], nonce);
-  update_leaf(4, &data[12], nonce);
+  update_leaf(2, &data[DATA_SIZE], nonce);
+  update_leaf(3, &data[DATA_SIZE * 2], nonce);
+  update_leaf(4, &data[DATA_SIZE * 3], nonce);
 }
 
 TMEA_Tree::~TMEA_Tree() {}
@@ -56,7 +56,7 @@ Node* TMEA_Tree::create_node() {
  * con el algoritmo gcm.
  * Actualiza el valor de nonce con el cual se puede descifrar.
  */
-Node* TMEA_Tree::create_tree(int levels, uint8_t nonce[2]) {
+Node* TMEA_Tree::create_tree(int levels, uint8_t nonce[NONCE_SIZE]) {
   Node* node = create_node();
   uint8_t* nonce_left = (node->element)->data.nonce.left;
   uint8_t* nonce_right = (node->element)->data.nonce.right;
@@ -71,12 +71,13 @@ Node* TMEA_Tree::create_tree(int levels, uint8_t nonce[2]) {
   return node;
 }
 
-void TMEA_Tree::update_leaf(int pos_leaf, uint8_t data[4], uint8_t nonce[2]) {
+void TMEA_Tree::update_leaf(int pos_leaf, uint8_t data[DATA_SIZE],
+                            uint8_t nonce[NONCE_SIZE]) {
   update_node(this->tree, data, nonce, pos_leaf, 1, (int)pow(2.0, LEVELS - 1));
 }
 
-int TMEA_Tree::decrypt_tree(Node* node, uint8_t nonce[2]) {
-  uint8_t nonce_left[2], nonce_right[2];
+int TMEA_Tree::decrypt_tree(Node* node, uint8_t nonce[NONCE_SIZE]) {
+  uint8_t nonce_left[NONCE_SIZE], nonce_right[NONCE_SIZE];
   int dec_status;
 
   if (node == NULL) {
@@ -85,8 +86,8 @@ int TMEA_Tree::decrypt_tree(Node* node, uint8_t nonce[2]) {
 
   if (!decrypt_node(node, nonce)) return 0;
 
-  memcpy(nonce_left, node->element->data.nonce.left, 2);
-  memcpy(nonce_right, node->element->data.nonce.right, 2);
+  memcpy(nonce_left, node->element->data.nonce.left, NONCE_SIZE);
+  memcpy(nonce_right, node->element->data.nonce.right, NONCE_SIZE);
 
   if (!decrypt_tree(node->left, nonce_left)) return 0;
   if (!decrypt_tree(node->right, nonce_right)) return 0;
@@ -94,7 +95,7 @@ int TMEA_Tree::decrypt_tree(Node* node, uint8_t nonce[2]) {
   return 1;
 }
 
-int TMEA_Tree::decrypt(uint8_t nonce[2]) {
+int TMEA_Tree::decrypt(uint8_t nonce[NONCE_SIZE]) {
   return decrypt_tree(this->tree, nonce);
 }
 
@@ -106,12 +107,47 @@ void TMEA_Tree::print() {
   print_node(this->tree, 0);
 }
 
+/**
+ * Guarda los nodos cifrados de manera recursiva (recorrido preorden) en un
+ * archivo binario.
+ */
+void TMEA_Tree::export_tree(Node* node, FILE* file) {
+  // Base case.
+  if (node == NULL) {
+    return;
+  }
+
+  fwrite(node->element->data.data, 1, DATA_SIZE, file);
+  fwrite(node->element->tag, 1, 16, file);
+
+  this->export_tree(node->left, file);
+  this->export_tree(node->right, file);
+}
+
+/**
+ * Guarda el arbol cifrado en un archivo binario.
+ */
+void TMEA_Tree::export_tree(FILE* file) { this->export_tree(this->tree, file); }
+
+/**
+ * Carga los nodos cifrados de manera recursiva (recorrido preorden) de un
+ * archivo binario.
+ */
+void TMEA_Tree::import_tree(Node* node, FILE* file) {
+  // TODO
+}
+
+/**
+ * Carga un arbol cifrado en un archivo binario.
+ */
+void TMEA_Tree::import_tree(FILE* file) { this->import_tree(this->tree, file); }
+
 bool is_leaf(Node* node) { return node->left == NULL && node->right == NULL; }
 
 /**
  * Cifra los datos (4 bytes) de un nodo y genera un nonce de 2 bytes en A.
  */
-void encrypt_node(Node* node, uint8_t A[2]) {
+void encrypt_node(Node* node, uint8_t A[NONCE_SIZE]) {
   TMEA_Element* element = node->element;
   uint8_t* T = element->tag;
   uint8_t* C = element->data.data;
@@ -130,7 +166,7 @@ void encrypt_node(Node* node, uint8_t A[2]) {
 /**
  * Descifra los datos (4 bytes) de un nodo con su nonce asociado.
  */
-int decrypt_node(Node* node, uint8_t A[2]) {
+int decrypt_node(Node* node, uint8_t A[NONCE_SIZE]) {
   TMEA_Element* element = node->element;
   uint8_t* T = element->tag;
   uint8_t* P = element->data.data;
@@ -146,8 +182,8 @@ int decrypt_node(Node* node, uint8_t A[2]) {
  * Modifica los datos de un nodo y vuelve a cifrar recursivamente hacia
  * el nodo raiz.
  */
-void update_node(Node* node, uint8_t data[4], uint8_t nonce[2], int position,
-                 int l, int r) {
+void update_node(Node* node, uint8_t data[DATA_SIZE], uint8_t nonce[NONCE_SIZE],
+                 int position, int l, int r) {
   int mid;
   uint8_t *nonce_left, *nonce_right;
 
@@ -171,7 +207,7 @@ void update_node(Node* node, uint8_t data[4], uint8_t nonce[2], int position,
 
   // Copy data to node and encript.
   if (is_leaf(node)) {
-    memcpy(node->element->data.data, data, 4);
+    memcpy(node->element->data.data, data, DATA_SIZE);
   }
 
   encrypt_node(node, nonce);
@@ -193,7 +229,7 @@ void print_node(Node* node, int spaces) {
   // Print current node after space count
   printf("\n");
   for (int i = 1; i < spaces; i++) printf("\t\t");
-  printf("(%s | %s)\n", bytes_to_hex(node->element->data.data, 4),
+  printf("(%s | %s)\n", bytes_to_hex(node->element->data.data, DATA_SIZE),
          bytes_to_hex(node->element->tag, 16));
   // printf("([%llu, %llu][%s])\n", node->element->data.nonce.left,
   //        node->element->data.nonce.right, node->element->tag);
