@@ -14,12 +14,19 @@ unsigned char K[] = {0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
 // Initialization vector.
 unsigned char IV[] = {34, 15,  20, 79,  33,  7, 1,  99,
                       58, 109, 12, 218, 172, 4, 86, 42};
-size_t iv = 16, p = 4, a = 2, c = p;
+size_t iv = 16, p = 4, a = NONCE_SIZE, c = p;
 
-/**
- * Nonce generado aleatoriamente de tamano 2 bytes.
- */
-uint16_t gen_nonce() { return (rand() % (65535 + 1)); }
+uint16_t gen_nonce();
+Node *create_node();
+bool is_leaf(Node *node);
+void encrypt_node(Node *node, uint8_t A[NONCE_SIZE]);
+int decrypt_node(Node *node, uint8_t A[NONCE_SIZE]);
+void update_node(Node *node, uint8_t data[DATA_SIZE], uint8_t nonce[NONCE_SIZE],
+                 int position, int l, int r);
+void print_node(Node *node, int spaces);
+Node *import_node(FILE *file, int levels);
+void export_node(Node *node, FILE *file);
+void save_node(Node *node, FILE *file);
 
 TMEA_Tree::TMEA_Tree() { this->tree = create_tree(LEVELS, this->nonce); }
 
@@ -45,18 +52,6 @@ TMEA_Tree::TMEA_Tree(FILE *file) {
 }
 
 TMEA_Tree::~TMEA_Tree() {}
-
-/**
- * Crea un nodo con sus valores vacios.
- */
-Node *TMEA_Tree::create_node() {
-  Node *node = new Node;
-  node->element = new TMEA_Element();
-  node->left = NULL;
-  node->right = NULL;
-
-  return node;
-}
 
 /**
  * Crea un arbol binario de 'levels' niveles con sus datos en 0's cifrado
@@ -114,54 +109,34 @@ void TMEA_Tree::print() {
 }
 
 /**
- * Guarda los nodos cifrados de manera recursiva (recorrido preorden) en un
- * archivo binario.
- */
-void TMEA_Tree::export_node(Node *node, FILE *file) {
-  // Base case.
-  if (node == NULL) {
-    return;
-  }
-
-  fwrite(node->element->data.data, 1, DATA_SIZE, file);
-  fwrite(node->element->tag, 1, 16, file);
-
-  this->export_node(node->left, file);
-  this->export_node(node->right, file);
-}
-
-/**
  * Guarda el arbol cifrado en un archivo binario.
  */
 void TMEA_Tree::export_tree(FILE *file) {
   fwrite(this->nonce, 1, NONCE_SIZE, file);
 
-  this->export_node(this->tree, file);
+  export_node(this->tree, file);
 }
 
 /**
- * Carga los nodos cifrados de manera recursiva (recorrido preorden) de un
- * archivo binario.
+ * Guarda los datos de las hojas del arbol en un archivo binario.
  */
-Node *TMEA_Tree::import_node(FILE *file, int levels) {
-  if (levels < 1) {
-    return NULL;
-  }
+void TMEA_Tree::save_data(FILE *file) { save_node(this->tree, file); }
 
-  int buff_size = NONCE_SIZE * 2;
-  Node *node = create_node();
+// ###################################################################
 
-  if (levels == 1) {
-    buff_size = DATA_SIZE;
-  }
+/**
+ * Nonce generado aleatoriamente de tamano 2 bytes.
+ */
+uint16_t gen_nonce() { return (rand() % (65535 + 1)); }
 
-  uint8_t buff[buff_size];
-
-  fread(node->element->data.data, 1, buff_size, file);
-  fread(node->element->tag, 1, 16, file);
-
-  node->left = this->import_node(file, levels - 1);
-  node->right = this->import_node(file, levels - 1);
+/**
+ * Crea un nodo con sus valores vacios.
+ */
+Node *create_node() {
+  Node *node = new Node;
+  node->element = new TMEA_Element();
+  node->left = NULL;
+  node->right = NULL;
 
   return node;
 }
@@ -260,4 +235,62 @@ void print_node(Node *node, int spaces) {
 
   // Process left child
   print_node(node->left, spaces);
+}
+
+/**
+ * Carga los nodos cifrados de manera recursiva (recorrido preorden) de un
+ * archivo binario.
+ */
+Node *import_node(FILE *file, int levels) {
+  if (levels < 1) {
+    return NULL;
+  }
+
+  int buff_size = NONCE_SIZE * 2;
+  Node *node = create_node();
+
+  if (levels == 1) {
+    buff_size = DATA_SIZE;
+  }
+
+  uint8_t buff[buff_size];
+
+  fread(node->element->data.data, 1, buff_size, file);
+  fread(node->element->tag, 1, 16, file);
+
+  node->left = import_node(file, levels - 1);
+  node->right = import_node(file, levels - 1);
+
+  return node;
+}
+
+/**
+ * Guarda los nodos cifrados de manera recursiva (recorrido preorden) en un
+ * archivo binario.
+ */
+void export_node(Node *node, FILE *file) {
+  // Base case.
+  if (node == NULL) {
+    return;
+  }
+
+  fwrite(node->element->data.data, 1, DATA_SIZE, file);
+  fwrite(node->element->tag, 1, 16, file);
+
+  export_node(node->left, file);
+  export_node(node->right, file);
+}
+
+/**
+ * Guarda los datos si el nodo es hoja en un archivo binario.
+ */
+void save_node(Node *node, FILE *file) {
+  if (node == NULL) {
+    return;
+  } else if (is_leaf(node)) {
+    fwrite(node->element->data.data, 1, DATA_SIZE, file);
+  }
+
+  save_node(node->left, file);
+  save_node(node->right, file);
 }

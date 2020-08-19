@@ -32,12 +32,9 @@ class TMEA_Tree {
  private:
   Node *tree;
   uint8_t nonce[NONCE_SIZE];
-  Node *create_node();
   Node *create_tree(int levels, uint8_t nonce[NONCE_SIZE]);
   int decrypt_tree(Node *node, uint8_t nonce[NONCE_SIZE]);
   void print(Node *node, int spaces);
-  void export_node(Node *node, FILE *file);
-  Node *import_node(FILE *file, int levels);
 
  public:
   TMEA_Tree();
@@ -49,11 +46,5 @@ class TMEA_Tree {
   int decrypt();
   void print();
   void export_tree(FILE *file);
+  void save_data(FILE *file);
 };
-
-bool is_leaf(Node *node);
-void encrypt_node(Node *node, uint8_t A[NONCE_SIZE]);
-int decrypt_node(Node *node, uint8_t A[NONCE_SIZE]);
-void update_node(Node *node, uint8_t data[DATA_SIZE], uint8_t nonce[NONCE_SIZE],
-                 int position, int l, int r);
-void print_node(Node *node, int spaces);

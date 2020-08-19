@@ -26,13 +26,18 @@ void test_tmea() {
   fclose(file);
   tree->print();
 
-  // Imprimir arbol descifrado.
+  // Descifrar arbol.
   if (tree->decrypt()) {
     printf("\nArbol descifrado.\n");
     tree->print();
   } else {
     printf("Error descifrando arbol. (INVALID nonce)\n");
   }
+
+  // Guardar datos binarios descifrados en un archivo.
+  file = fopen("decrypt.dat", "wb");
+  tree->save_data(file);
+  fclose(file);
 }
 
 int main() {
