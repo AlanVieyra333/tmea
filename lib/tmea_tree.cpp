@@ -14,9 +14,9 @@ unsigned char K[] = {0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47,
 // Initialization vector.
 unsigned char IV[] = {34, 15,  20, 79,  33,  7, 1,  99,
                       58, 109, 12, 218, 172, 4, 86, 42};
-size_t iv = 16, p = 4, a = NONCE_SIZE, c = p;
+size_t iv = 16;
 
-uint16_t gen_nonce();
+void gen_nonce(uint8_t nonce[NONCE_SIZE]);
 Node *create_node();
 bool is_leaf(Node *node);
 void encrypt_node(Node *node, uint8_t A[NONCE_SIZE]);
@@ -59,14 +59,16 @@ TMEA_Tree::~TMEA_Tree() {}
  * Actualiza el valor de nonce con el cual se puede descifrar.
  */
 Node *TMEA_Tree::create_tree(int levels, uint8_t nonce[NONCE_SIZE]) {
+  if (levels < 1) {
+    return NULL;
+  }
+
   Node *node = create_node();
   uint8_t *nonce_left = (node->element)->data.nonce.left;
   uint8_t *nonce_right = (node->element)->data.nonce.right;
 
-  if (levels > 1) {
-    node->left = create_tree(levels - 1, nonce_left);
-    node->right = create_tree(levels - 1, nonce_right);
-  }
+  node->left = create_tree(levels - 1, nonce_left);
+  node->right = create_tree(levels - 1, nonce_right);
 
   encrypt_node(node, nonce);
 
@@ -127,7 +129,11 @@ void TMEA_Tree::save_data(FILE *file) { save_node(this->tree, file); }
 /**
  * Nonce generado aleatoriamente de tamano 2 bytes.
  */
-uint16_t gen_nonce() { return (rand() % (65535 + 1)); }
+void gen_nonce(uint8_t nonce[NONCE_SIZE]) {
+  for (size_t i = 0; i < NONCE_SIZE; i++) {
+    nonce[i] = (uint8_t)rand() + 1;
+  }
+}
 
 /**
  * Crea un nodo con sus valores vacios.
@@ -150,16 +156,20 @@ void encrypt_node(Node *node, uint8_t A[NONCE_SIZE]) {
   TMEA_Element *element = node->element;
   uint8_t *T = element->tag;
   uint8_t *C = element->data.data;
+  size_t p = NONCE_SIZE * 2;
+
+  if (is_leaf(node)) {
+    p = DATA_SIZE;
+  }
 
   // Plain text.
   unsigned char P[p];
   memcpy(P, &element->data.data, p);
 
   // Additional authenticated data.
-  uint16_t nonce = gen_nonce();
-  memcpy(A, &nonce, a);
+  gen_nonce(A);
 
-  gcm_encrypt(P, p, A, a, IV, iv, K, T, C);
+  gcm_encrypt(P, p, A, NONCE_SIZE, IV, iv, K, T, C);
 }
 
 /**
@@ -169,12 +179,17 @@ int decrypt_node(Node *node, uint8_t A[NONCE_SIZE]) {
   TMEA_Element *element = node->element;
   uint8_t *T = element->tag;
   uint8_t *P = element->data.data;
+  size_t c = NONCE_SIZE * 2;
+
+  if (is_leaf(node)) {
+    c = DATA_SIZE;
+  }
 
   // Encrypt text.
   uint8_t C[c];
   memcpy(C, &element->data.data, c);
 
-  return gcm_decrypt(C, c, A, a, IV, iv, K, T, P);
+  return gcm_decrypt(C, c, A, NONCE_SIZE, IV, iv, K, T, P);
 }
 
 /**
@@ -219,6 +234,12 @@ void print_node(Node *node, int spaces) {
   // Base case
   if (node == NULL) return;
 
+  int buff_size = NONCE_SIZE * 2;
+
+  if (is_leaf(node)) {
+    buff_size = DATA_SIZE;
+  }
+
   // Increase distance between levels
   spaces++;
 
@@ -228,7 +249,7 @@ void print_node(Node *node, int spaces) {
   // Print current node after space count
   printf("\n");
   for (int i = 1; i < spaces; i++) printf("\t\t");
-  printf("(%s | %s)\n", bytes_to_hex(node->element->data.data, DATA_SIZE),
+  printf("(%s | %s)\n", bytes_to_hex(node->element->data.data, buff_size),
          bytes_to_hex(node->element->tag, 16));
   // printf("([%llu, %llu][%s])\n", node->element->data.nonce.left,
   //        node->element->data.nonce.right, node->element->tag);
@@ -274,7 +295,13 @@ void export_node(Node *node, FILE *file) {
     return;
   }
 
-  fwrite(node->element->data.data, 1, DATA_SIZE, file);
+  int buf_size = NONCE_SIZE * 2;
+
+  if (is_leaf(node)) {
+    buf_size = DATA_SIZE;
+  }
+
+  fwrite(node->element->data.data, 1, buf_size, file);
   fwrite(node->element->tag, 1, 16, file);
 
   export_node(node->left, file);

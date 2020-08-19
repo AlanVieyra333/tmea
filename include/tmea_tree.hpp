@@ -3,9 +3,9 @@
 #include <stdlib.h>
 
 #define LEVELS 3
-#define LEAVES 4     // 2^(LEVELS-1)
-#define DATA_SIZE 4  // In bytes
-#define NONCE_SIZE DATA_SIZE / 2
+#define LEAVES 4      // 2^(LEVELS-1)
+#define DATA_SIZE 32   // In bytes
+#define NONCE_SIZE 8  // In bytes
 #define TREE_SIZE LEAVES *DATA_SIZE
 
 typedef struct _Nonce {
