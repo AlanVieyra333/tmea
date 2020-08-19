@@ -31,23 +31,24 @@ typedef struct _Node {
 class TMEA_Tree {
  private:
   Node *tree;
+  uint8_t nonce[NONCE_SIZE];
   Node *create_node();
   Node *create_tree(int levels, uint8_t nonce[NONCE_SIZE]);
   int decrypt_tree(Node *node, uint8_t nonce[NONCE_SIZE]);
   void print(Node *node, int spaces);
-  void export_tree(Node *node, FILE *file);
-  void import_tree(Node *node, FILE *file);
+  void export_node(Node *node, FILE *file);
+  Node *import_node(FILE *file, int levels);
 
  public:
-  TMEA_Tree(uint8_t nonce[NONCE_SIZE]);
-  TMEA_Tree(uint8_t data[TREE_SIZE], uint8_t nonce[NONCE_SIZE]);
+  TMEA_Tree();
+  TMEA_Tree(uint8_t data[TREE_SIZE]);
+  TMEA_Tree(FILE *file);
   ~TMEA_Tree();
   void update_leaf(int pos_leaf, uint8_t data[DATA_SIZE],
                    uint8_t nonce[NONCE_SIZE]);
-  int decrypt(uint8_t nonce[NONCE_SIZE]);
+  int decrypt();
   void print();
   void export_tree(FILE *file);
-  void import_tree(FILE *file);
 };
 
 bool is_leaf(Node *node);

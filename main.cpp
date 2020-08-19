@@ -6,29 +6,30 @@
 #include "utils.h"
 
 void test_tmea() {
+  TMEA_Tree *tree;
   uint8_t data[TREE_SIZE] = {1, 2,  3,  4,  5,  6,  7,  8,
                              9, 10, 11, 12, 13, 14, 15, 16};
-  uint8_t nonce[NONCE_SIZE];
+  FILE *file;
 
   // Crear arbol binario cifrado a partir de los datos de entrada.
-  TMEA_Tree tree(data, nonce);
-  printf("Nonce: %s\n", bytes_to_hex(nonce, NONCE_SIZE));
-  tree.print();
+  tree = new TMEA_Tree(data);
+  tree->print();
 
   // Exportar arbol cifrado en archivo.
-  FILE *file = fopen("encrypt.dat", "wb");
-  tree.export_tree(file);
+  file = fopen("encrypt.dat", "wb");
+  tree->export_tree(file);
   fclose(file);
 
   // Importar un arbol cifrado de un archivo.
   file = fopen("encrypt.dat", "rb");
-  tree.import_tree(file);
+  tree = new TMEA_Tree(file);
   fclose(file);
+  tree->print();
 
   // Imprimir arbol descifrado.
-  if (tree.decrypt(nonce)) {
+  if (tree->decrypt()) {
     printf("\nArbol descifrado.\n");
-    tree.print();
+    tree->print();
   } else {
     printf("Error descifrando arbol. (INVALID nonce)\n");
   }
